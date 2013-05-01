@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mule xmlns:cxf="http://www.mulesoft.org/schema/mule/cxf" xmlns:core="http://www.mulesoft.org/schema/mule/core" xmlns:pattern="http://www.mulesoft.org/schema/mule/pattern"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:spring="http://www.springframework.org/schema/beans" version="CE-3.3.1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:vm="http://www.mulesoft.org/schema/mule/vm"
+	xmlns:test="http://www.mulesoft.org/schema/mule/test" xmlns:json="http://www.mulesoft.org/schema/mule/json" xmlns:mule-xml="http://www.mulesoft.org/schema/mule/xml"
+	xsi:schemaLocation="
+http://www.mulesoft.org/schema/mule/cxf http://www.mulesoft.org/schema/mule/cxf/3.3/mule-cxf.xsd http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd 
+http://www.mulesoft.org/schema/mule/pattern http://www.mulesoft.org/schema/mule/pattern/3.3/mule-pattern.xsd 
+		http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/3.3/mule-http.xsd 
+		http://www.mulesoft.org/schema/mule/vm http://www.mulesoft.org/schema/mule/vm/3.3/mule-vm.xsd
+		http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/3.3/mule.xsd
+		http://www.mulesoft.org/schema/mule/test  http://www.mulesoft.org/schema/mule/test/3.3/mule-test.xsd
+		http://www.mulesoft.org/schema/mule/json  www.mulesoft.org/schema/mule/json/3.3/mule-json.xsd
+		http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-3.2.xsd
+		http://www.mulesoft.org/schema/mule/xml http://www.mulesoft.org/schema/mule/xml/3.3/mule-xml.xsd">
+
+
+
+
+	<!-- global configuration -->
+	<configuration>
+		<default-threading-profile poolExhaustedAction="RUN" />
+	</configuration>
+
+	<!-- global vm config -->
+	<vm:connector name="vmConnector" queueTimeout="5000" validateConnections="true" />
+
+	<!-- endpoint proxy (orchestration) flows -->
+	<flow name="soa-integration-flow">
+		<http:inbound-endpoint address="http://localhost:2021/mule-esb/rest/userprofiles" method="GET" contentType="application/json" />
+		<http:outbound-endpoint address="http://localhost:9090/spring-rest-service/rest/userprofiles" method="GET" contentType="application/json" />
+	</flow>
+	<flow name="soa-integration-create-flow">
+		<http:inbound-endpoint address="http://localhost:2021/mule-esb/rest/createuserprofile" method="POST" contentType="application/json" />
+		<http:outbound-endpoint address="http://localhost:9090/spring-rest-service/rest/createuserprofile" method="POST" contentType="application/json" />
+	</flow>
+
+
+
+
+
+	<flow name="restProxyService">
+			
+			<http:inbound-endpoint address="http://localhost:2025/mule-esb/rest/userprofiles" method="GET" contentType="application/json" />
+
+		<mule-xml:xml-to-dom-transformer name="xmlToDom" returnClass="org.w3c.dom.Document" />
+
+		<!--<json:object-to-json-transformer returnClass="java.lang.String" sourceClass="com.soai.types.UserProfileResponse" /> -->
+		<http:outbound-endpoint address="http://localhost:8080/soap-service/UserProfileService?wsdl" exchange-pattern="request-response">
+			<cxf:proxy-service payload="body" service="UserProfileService" wsdlLocation="http://localhost:8080/soap-service/UserProfileService?wsdl"
+				namespace="http://soai.com/types/" />
+		</http:outbound-endpoint>
+
+	</flow>
+
+
+
+	<!-- ws proxy -->
+	<!--<pattern:web-service-proxy name="weather-forecast-ws-proxy"> <http:inbound-endpoint address="http://localhost:2025/mule-esb/UserProfileService?wsdl" /> <http:outbound-endpoint 
+		address="http://localhost:8080/soap-service/UserProfileService?wsdl" /> </pattern:web-service-proxy> --><!-- simple transformation flow -->
+	<flow name="soaiTransformerFlow" doc:name="soaiTransformerFlow">
+		<http:inbound-endpoint exchange-pattern="request-response" host="localhost" port="8081" doc:name="HTTP" />
+		<component class="com.bd.mule.esb.soai.HelloComponent" doc:name="Java" />
+		<custom-transformer class="com.bd.mule.esb.soai.SoaiTransformer" doc:name="SoaiTransformer" />
+	</flow>
+
+	<!-- VM functional test start -->
+	<vm:endpoint name="outer-endpoint" path="outer-endpoint" />
+	<flow name="outer.flow">
+		<inbound-endpoint ref="outer-endpoint" exchange-pattern="one-way" />
+		<logger level="INFO" message="in outer flow" />
+		<outbound-endpoint ref="inner-endpoint" exchange-pattern="request-response" />
+	</flow>
+
+	<vm:endpoint name="inner-endpoint" path="inner-endpoint" />
+	<vm:endpoint name="inner.completed" path="inner.completed" />
+	<flow name="inner.flow">
+		<inbound-endpoint ref="inner-endpoint" exchange-pattern="request-response" />
+		<logger level="INFO" message="in inner flow" />
+		<outbound-endpoint ref="inner.ftc" exchange-pattern="request-response" />
+		<outbound-endpoint ref="inner.completed" exchange-pattern="one-way" />
+	</flow>
+
+	<vm:endpoint name="inner.ftc" path="inner.ftc" />
+	<simple-service name="innerFtc" endpoint-ref="inner.ftc">
+		<test:component />
+	</simple-service>
+	<!-- VM functional test end -->
+
+</mule>

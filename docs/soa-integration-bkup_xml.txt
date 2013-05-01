@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:spring="http://www.springframework.org/schema/beans" version="CE-3.3.1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:vm="http://www.mulesoft.org/schema/mule/vm"
+	xmlns:test="http://www.mulesoft.org/schema/mule/test" xmlns:json="http://www.mulesoft.org/schema/mule/json"
+	xsi:schemaLocation="
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/3.3/mule-http.xsd 
+http://www.mulesoft.org/schema/mule/vm http://www.mulesoft.org/schema/mule/vm/3.3/mule-vm.xsd
+http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/3.3/mule.xsd
+http://www.mulesoft.org/schema/mule/test  http://www.mulesoft.org/schema/mule/test/3.3/mule-test.xsd
+http://www.mulesoft.org/schema/mule/json  www.mulesoft.org/schema/mule/json/3.3/mule-json.xsd
+http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-3.2.xsd">
+
+	<!-- global configuration -->
+	<configuration>
+		<default-threading-profile poolExhaustedAction="RUN" />
+	</configuration>
+
+
+	<!-- global vm config -->
+
+	<vm:connector name="vmConnector" queueTimeout="5000" validateConnections="true" />
+
+	<!-- global endpoints -->
+
+	<!--<vm:endpoint name="esb-UserProfiles" address="http://localhost:2020/mule-esb/rest/userprofiles" /> <vm:endpoint name="soap-service-UserProfiles" address="http://localhost:9090/spring-rest-service/rest/userprofiles" 
+		/> --><!--<flow name="soa-integration-flow" doc:name="soa-integration-flow"> <http:inbound-endpoint path="spring-rest-service/rest/userprofiles" host="localhost" port="2020" 
+		contentType="application/json" doc:name="HTTP" /> <http:outbound-endpoint host="localhost" port="9090" contentType="application/json" doc:name="HTTP" /> </flow> -->
+
+	<!-- works perfectly <flow name="soa-integration-flow"> <http:inbound-endpoint address="http://localhost:2020/mule-esb/rest/userprofiles" method="GET" /> <http:outbound-endpoint 
+		address="http://localhost:9090/spring-rest-service/rest/userprofiles" method="GET" /> </flow> -->
+
+	<!-- flows -->
+	<!--<flow name="soa-integration-flow"> <http:inbound-endpoint ref="esb-UserProfiles" method="GET" /> <http:outbound-endpoint ref="soap-service-UserProfiles" method="GET" 
+		/> </flow> -->
+	<flow name="soa-integration-flow2">
+		<http:inbound-endpoint address="http://localhost:2021/mule-esb/rest/userprofiles" method="GET" />
+		<http:outbound-endpoint address="http://localhost:9090/spring-rest-service/rest/userprofiles" method="GET" />
+	</flow>
+
+	<!-- transformation flow -->
+	<flow name="helloFlow" doc:name="helloFlow">
+		<http:inbound-endpoint exchange-pattern="request-response" host="localhost" port="8082" doc:name="HTTP" />
+		<component class="com.bd.mule.esb.soai.HelloComponent" doc:name="Hello" />
+	</flow>
+
+	<!-- Transformers - Convert data from one format to another. <custom-transformer name="ThisToThat" class="com.acme.transformer.ThisToThat" /> <flow name="myBasicFlow"> 
+		<inbound-endpoint ref="CustomerRequests" /> <component class="com.acme.service.BasicService" /> <outbound-endpoint ref="CustomerResponses" transformer-refs="ThisToThat" 
+		/> </flow> --><!-- end of new -->
+
+
+	<!--<service name="HttpProxyService"> <inbound> <inbound-endpoint address="http://localhost:2020/spring-rest-service/rest/userprofiles" synchronous="true"/> </inbound> 
+		<outbound> <pass-through-router> <outbound-endpoint address="http://localhost:9090/spring-rest-service/rest/userprofiles" synchronous="true"/> </pass-through-router> 
+		</outbound> </service> -->
+
+	<!-- VM functional test start -->
+
+	<vm:endpoint name="outer-endpoint" path="outer-endpoint" />
+	<flow name="outer.flow">
+		<inbound-endpoint ref="outer-endpoint" exchange-pattern="one-way" />
+		<logger level="INFO" message="in outer flow" />
+		<outbound-endpoint ref="inner-endpoint" exchange-pattern="request-response" />
+	</flow>
+
+	<vm:endpoint name="inner-endpoint" path="inner-endpoint" />
+	<vm:endpoint name="inner.completed" path="inner.completed" />
+	<flow name="inner.flow">
+		<inbound-endpoint ref="inner-endpoint" exchange-pattern="request-response" />
+		<logger level="INFO" message="in inner flow" />
+		<outbound-endpoint ref="inner.ftc" exchange-pattern="request-response" />
+		<outbound-endpoint ref="inner.completed" exchange-pattern="one-way" />
+	</flow>
+
+	<vm:endpoint name="inner.ftc" path="inner.ftc" />
+	<simple-service name="innerFtc" endpoint-ref="inner.ftc">
+		<test:component />
+	</simple-service>
+
+	<!-- VM functional test end -->
+
+</mule>
